@@ -44,7 +44,9 @@ def draw(chr):
 
 
 class globals:
+	error = {}
 	pagesList = []
+	padsList = []  #maybe a more complicated version of a list. probably a list of {}
 	pdfPad = None
 	indexPad = None
 	scrn = None
@@ -76,7 +78,8 @@ def grabPages(textFile):
 def grabCurrScreenSize():
 	'''returns the height and width of the window'''
 	#print 'asdfa'
-	return gl.scrn.getmaxyx()
+	size =  gl.scrn.getmaxyx()
+	return size
 	pass
 	  
 def getSecondWindowCorner():
@@ -85,19 +88,20 @@ def getSecondWindowCorner():
 	
 	The first window should always be displayed at (0,0)
 	'''
-	height, col = grabCurrScreenSize()
-	return height/2, col
+	height, width = grabCurrScreenSize()
+	return height/2, width
 	
 	
-def displayNewPad(page):
+def displayNewPad(page, bottom = False):
 	pad, pageLines = createNewPad(page)
 	fillInPad(pad, pageLines)
-	displayPad(pad)
+	displayPad(pad, bottom)
+	return pad
 	
 def createNewPad(page):
 	pageLines = page.split(os.linesep)
-	nlines = len(lines)
-	ncols = max(map(len, lines))
+	nlines = len(pageLines)
+	ncols = max(map(len, pageLines))
 	pad = curses.newpad(nlines, ncols)
 	return pad, pageLines
 	
@@ -105,12 +109,25 @@ def fillInPad(pad, pageLines):
 	for j, line in enumerate(pageLines):
 		pad.addstr(j, 0, line)
 		
-def displayPad(pad, bottom=False):
+def displayPad(pad, bottom=False, padCorner = (0,0) ):
 	y, x = 0, 0
-	if bottom:
-		y, x = getSecondWindowCorner()
+	midy, midx = getSecondWindowCorner()
 	winY, winX = grabCurrScreenSize()
-	pad.refresh(y, x, 0, 0, winY/2, winX)
+	#pad.refresh(y, x, 0, 0, 10, 30)
+	try:
+	  if not bottom:
+		  pad.refresh(padCorner[0], padCorner[1], 1, 0, midy-1, midx-1)
+	  else:
+		  pad.refresh(padCorner[0], padCorner[1], midy+1, 0, winY-1, winX-1)
+	except :
+		gl.error['bottom ='] = bottom
+		gl.error['args on 0'] = (padCorner[0], padCorner[1], 0, 0, midy-1, midx-1)
+		gl.error['args on 1'] = (padCorner[0], padCorner[1], midy-1, midx, winY-1, winX-1)
+		raise
+	#pad.refresh(padRowNum, padColNum, windowYcoord, windowXcoord, windowY_ENDcoor, windowX_ENDcoor)
+	#pad.refresh(0, 0, 0, 0, 23, 79)
+	#pad.refresh(0, 0, y, 0, winY - 1, winX-1)
+	gl.scrn.refresh()
 	
 	
 #keyboardActions = {
@@ -129,7 +146,8 @@ def checkUserInput():
 def main():
 	try:
 		initScreen()
-		size =  grabCurrScreenSize()
+		size =  (grabCurrScreenSize(), grabCurrScreenSize())
+		initializeTesting()
 		gl.scrn.getch()
 		#testGame()
 		#restoreScreen()
@@ -142,10 +160,19 @@ def main():
 	finally :
 		restoreScreen()
 		print size
+		print gl.error
 		#raise
+	
+def initializeTesting():
+	pages = indexer.preparePdfPages(indexer.test.testPdfFile)
+	gl.pagesList = pages
+	displayNewPad(pages[0])
+	displayNewPad(pages[1], 1)
+	
 	
 #print __name__
 if __name__ == '__main__':
+	
 	main()
 	
 	

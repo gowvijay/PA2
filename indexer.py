@@ -38,7 +38,8 @@ def buildIndex(pdf_file_name, index_file_name, word_file_name):
 	prepareWords(word_file_name)
 	textFile = pdfToText(pdf_file_name)
 	indexPDF(textFile)
-	writeIndexFile(index_file_name)
+	if not debug:
+		writeIndexFile(index_file_name)
 	return textFile, index_file_name
 
 def prepareWords(word_file_name):
@@ -103,6 +104,11 @@ def writeIndexFile(index_file_name):
 class testGlobals:
 	testWordFile = 'words_testFile.txt'
 	testPdfFile = 'pdfTestFile.txt'
+	debug = 1
+	
+test = testGlobals()
+debug = test.debug
+	
 #print __name__
 if __name__ == '__main__':
     prepareWords('words_testFile.txt')
