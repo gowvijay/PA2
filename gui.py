@@ -61,6 +61,7 @@ def initScreen():
 	curses.noecho
 	curses.cbreak()
 	curses.start_color()
+	gl.scrn.keypad(1)
 	gb.scrn.clear()
 	gl.scrn.refresh()
 	gl.row = 0
@@ -70,6 +71,8 @@ def restoreScreen():
 	curses.nocbreak()
 	curses.echo()
 	curses.endwin()
+	gl.scrn.keypad(0)
+	
 	
 def grabPages(textFile):
 	gl.pagesList = indexer.preparePdfPages(textFile)
@@ -91,15 +94,35 @@ def getSecondWindowCorner():
 	height, width = grabCurrScreenSize()
 	return height/2, width
 	
+def createNewPads(pagesList):
+	gl.padsList = [{} for j in pagesList]
+	for padNum, page in pagesList:
+		pad, pageLines = createNewPad(page)
+		fillInPad(pad, pageLines)
+		addPadToPadList(pad, padNum, pageLines)
+		
+padsKeys = ['pad', 'pageLines', 'coor', ]
+		
+def addPadToPadList(pad, pageLines, padNum=-1):
+	tempPad = {'pad': pad, 'pageLines': pageLines}
+	if padNum == -1:
+		padNum = len(gl.padsList)
+		gl.padsList.append(tempPad)
+		#return padNum
+	else:
+		gl.padsList[padNum]['pad'] = pad
+		gl.padsList[padNum]['pageLines'] = pageLines
+	return padNum
 	
 def displayNewPad(page, bottom = False):
 	pad, pageLines = createNewPad(page)
 	fillInPad(pad, pageLines)
-	displayPad(pad, bottom)
-	return pad
+	padNum = addPadToPadList(pad, pageLines)
+	displayPad(padNum, bottom)
+	return pad, pageLines
 	
-def createNewPad(page):
-	pageLines = page.split(os.linesep)
+def createNewPad(pageStr):
+	pageLines = pageStr.split(os.linesep)
 	nlines = len(pageLines)
 	ncols = max(map(len, pageLines))
 	pad = curses.newpad(nlines, ncols)
@@ -109,16 +132,31 @@ def fillInPad(pad, pageLines):
 	for j, line in enumerate(pageLines):
 		pad.addstr(j, 0, line)
 		
-def displayPad(pad, bottom=False, padCorner = (0,0) ):
+def addPad_Coordinates(padNum, (padCornerY, padCornerX, winStart_Y, winStart_X, winEnd_Y, winEnd_X) = (0,0,0,0,0,0), bottom=False):
+	gl.padsList[padNum]['coor'] = (padCornerY, padCornerX, winStart_Y, winStart_X, winEnd_Y, winEnd_X)
+	gl.padsList[padNum]['bottom'] = bottom
+	
+def getPad_Coordinates(padNum):
+	try: 
+		return gl.padsList[padNum]['coor']
+	except:
+		return (0,0,0,0,0,0)
+		
+def displayPad(padNum, bottom=False, padCorner = (0,0) ):
+	pad = gl.padsList[padNum]['pad']
 	y, x = 0, 0
 	midy, midx = getSecondWindowCorner()
 	winY, winX = grabCurrScreenSize()
 	#pad.refresh(y, x, 0, 0, 10, 30)
 	try:
-	  if not bottom:
-		  pad.refresh(padCorner[0], padCorner[1], 1, 0, midy-1, midx-1)
-	  else:
-		  pad.refresh(padCorner[0], padCorner[1], midy+1, 0, winY-1, winX-1)
+		if not bottom:
+			coords = (padCorner[0], padCorner[1], 1, 0, midy-1, midx-1)
+			#pad.refresh(padCorner[0], padCorner[1], 1, 0, midy-1, midx-1)
+		else:
+			coords = (padCorner[0], padCorner[1], midy+1, 0, winY-1, winX-1)
+		pad.refresh(*coords)
+		addPad_Coordinates(padNum, coords, bottom)
+		
 	except :
 		gl.error['bottom ='] = bottom
 		gl.error['args on 0'] = (padCorner[0], padCorner[1], 0, 0, midy-1, midx-1)
@@ -129,6 +167,27 @@ def displayPad(pad, bottom=False, padCorner = (0,0) ):
 	#pad.refresh(0, 0, y, 0, winY - 1, winX-1)
 	gl.scrn.refresh()
 	
+def movePad(padNum, lines=1, columns=0):
+	'''
+	window.scroll([lines=1])
+	  Scroll the screen or scrolling region upward by lines lines.
+    window.hline([y, x], ch, n)
+	  Display a horizontal line starting at (y, x) with length n consisting of the character ch.
+'''
+	padDict = gl.padsList[padNum]
+	pad = padDict['pad']
+	coor = padDict['coor']
+	bottom = padDict['bottom']
+	#padCorner = coor[:2]
+	newY = coor[0] + lines
+	if newY < 0:
+		newY = 0
+	newX = coor[1] + columns
+	if newX < 0:
+		newX = 0
+	displayPad(padNum, bottom, padCorner = (newY, newX))
+	#pad.scroll()
+	pass
 	
 #keyboardActions = {
 					#'o':switchWindow, 
@@ -168,6 +227,11 @@ def initializeTesting():
 	gl.pagesList = pages
 	displayNewPad(pages[0])
 	displayNewPad(pages[1], 1)
+	for i in range(3):
+	#while True:
+		checkUserInput()
+		movePad(0, 1, i)
+		movePad(1, 1, i)
 	
 	
 #print __name__
