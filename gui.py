@@ -2,6 +2,8 @@
 
 import indexer
 import curses, sys, os
+import pprint
+pp = pprint.pprint
 
 #print curses
 
@@ -58,6 +60,9 @@ gb = gl = globals()
 #wr = curses.wrapper.wrapper()
 def initScreen():
 	gl.scrn = curses.initscr()
+	size = getSecondWindowCorner()
+	gl.topWin = gl.scrn.subwin(size[0]-1, size[1]-1, 0+1,0)
+	gl.bottomWin = gl.scrn.subwin(size[0]-1, size[1]-1, size[0]+1,0)
 	curses.noecho
 	curses.cbreak()
 	curses.start_color()
@@ -67,12 +72,52 @@ def initScreen():
 	gl.row = 0
 	gl.column = 0
 	
+def initPdfAndIndex():
+	'''http://docs.python.org/library/curses.html#curses.window.overlay
+	window.overlay(destwin[, sminrow, smincol, dminrow, dmincol, dmaxrow, dmaxcol])
+		Overlay the window on top of destwin. The windows need not be the same size, 
+		only the overlapping region is copied. This copy is non-destructive, which 
+		means that the current background character does not overwrite the old contents of destwin.
+		To get fine-grained control over the copied region, the second form of overlay() 
+		can be used. sminrow and smincol are the upper-left coordinates of the source window, 
+		and the other variables mark a rectangle in the destination window.
+	'''
+	try:
+		padDict = gl.padsList[0]
+		pad = padDict['pad']
+		pad.overlay(gl.topWin)
+		gl.topWin.refresh()
+		
+		padDict = gl.padsList[1]
+		pad = padDict['pad']
+		dsize = pad.getmaxyx()
+		dy, dx = dsize 
+		ssize = gl.bottomWin.getmaxyx()
+		sy, sx = ssize
+		pad.overlay(gl.bottomWin, 0, 0, 0, 0, sy-1, dx-1)
+		'''window.hline([y, x], ch, n)
+    Display a horizontal line starting at (y, x) with length n consisting of the character ch.'''
+		gl.scrn.hline('-', 5)
+		gl.bottomWin.refresh()
+		#gl.topWin.overlay(pad)
+		#gl.scrn.refresh()
+	except:
+		gl.error['initPdfAndIndex'] = dsize, ssize
+		raise
+		
+def scrollPad():
+	'''
+	http://docs.python.org/library/curses.html#curses.window.mvderwin
+	'''
+	return
+	gl.padsList[0]['pad'].mvderwin(2, 3)
+	#gl.topWin.mvderwin(2, 3)
+	
 def restoreScreen():
 	curses.nocbreak()
 	curses.echo()
 	curses.endwin()
 	gl.scrn.keypad(0)
-	
 	
 def grabPages(textFile):
 	gl.pagesList = indexer.preparePdfPages(textFile)
@@ -95,23 +140,32 @@ def getSecondWindowCorner():
 	return height/2, width
 	
 def createNewPads(pagesList):
-	gl.padsList = [{} for j in pagesList]
-	for padNum, page in pagesList:
-		pad, pageLines = createNewPad(page)
-		fillInPad(pad, pageLines)
-		addPadToPadList(pad, padNum, pageLines)
-		
-padsKeys = ['pad', 'pageLines', 'coor', ]
+	try:
+		gl.padsList = [{} for j in pagesList]
+		for padNum, page in enumerate(pagesList):
+			pad, pageLines = createNewPad(page)
+			fillInPad(pad, pageLines)
+			addPadToPadList(pad, pageLines, padNum)
+	except:
+		gl.error['createNewPad'] = pad, padNum, page, pageLines
+		gl.error['gl.padsList'] = gl.padsList
+		raise
+	  
+padsKeys = ['pad', 'pageLines', 'coor', 'cursorPos', 'bottom' ]
 		
 def addPadToPadList(pad, pageLines, padNum=-1):
-	tempPad = {'pad': pad, 'pageLines': pageLines}
+	tempPad = {'pad': pad, 'pageLines': pageLines, 'cursorPos':(0,0)}
+	#gl.error['addPad, tempPad'] = tempPad
+	#pad.move(0,0)
+	#pad.syncok(1)
 	if padNum == -1:
 		padNum = len(gl.padsList)
-		gl.padsList.append(tempPad)
+		gl.padsList.append({})
 		#return padNum
-	else:
-		gl.padsList[padNum]['pad'] = pad
-		gl.padsList[padNum]['pageLines'] = pageLines
+	gl.padsList[padNum].update(tempPad.items())
+	##gl.error['addPad, gl.padsList'] = gl.padsList
+	
+		#gl.padsList[padNum]['pageLines'] = pageLines
 	return padNum
 	
 def displayNewPad(page, bottom = False):
@@ -135,6 +189,7 @@ def fillInPad(pad, pageLines):
 def addPad_Coordinates(padNum, (padCornerY, padCornerX, winStart_Y, winStart_X, winEnd_Y, winEnd_X) = (0,0,0,0,0,0), bottom=False):
 	gl.padsList[padNum]['coor'] = (padCornerY, padCornerX, winStart_Y, winStart_X, winEnd_Y, winEnd_X)
 	gl.padsList[padNum]['bottom'] = bottom
+	
 	
 def getPad_Coordinates(padNum):
 	try: 
@@ -188,6 +243,32 @@ def movePad(padNum, lines=1, columns=0):
 	displayPad(padNum, bottom, padCorner = (newY, newX))
 	#pad.scroll()
 	pass
+  
+def mouse_getPos(padNum):
+	padDict = gl.padsList[padNum]
+	pad = padDict['pad']
+	return pad.getyx()
+	
+def mouse_movePos(padNum, lines=1, columns=0):
+	try:
+		padDict = gl.padsList[padNum]
+		pad = padDict['pad']
+		#coor = mouse_getPos(padNum)
+		coor = 0,0
+		newY = coor[0] + lines
+		if newY < 0:
+			newY = 0
+		newX = coor[1] + columns
+		if newX < 0:
+			newX = 0
+		pad.move(newY, newX)
+		pad.move(5,5)
+		
+		gl.scrn.refresh()
+	except:
+		gl.error['move cursor'] = (padNum, lines, columns, newY, newX, coor)
+		raise
+	
 	
 #keyboardActions = {
 					#'o':switchWindow, 
@@ -219,19 +300,37 @@ def main():
 	finally :
 		restoreScreen()
 		print size
-		print gl.error
+		pp( gl.error )
 		#raise
 	
 def initializeTesting():
 	pages = indexer.preparePdfPages(indexer.test.testPdfFile)
 	gl.pagesList = pages
-	displayNewPad(pages[0])
-	displayNewPad(pages[1], 1)
-	for i in range(3):
-	#while True:
-		checkUserInput()
-		movePad(0, 1, i)
-		movePad(1, 1, i)
+	
+	createNewPads(pages)
+	
+	#displayNewPad(pages[0])
+	#displayNewPad(pages[1], 1)
+	#for i in range(5):
+	##while True:
+		#checkUserInput()
+		##movePad(0, 1, i**2)
+		##movePad(1, 1, i**2)
+		#mouse_movePos(0)
+	#movePad(0, -100, -100)
+	#movePad(1, -100, -100)
+	#gl.scrn.vline('|', 24)
+	initPdfAndIndex()
+	scrollPad()
+	gl.scrn.syncok(1)
+	gl.error['curses.setsyx(y, x)'] = curses.setsyx(5, 6)
+	gl.scrn.syncup()
+	gl.error['curses.getsyx()'] = curses.getsyx()
+	gl.error['window.getyx()'] = gl.scrn.getyx()
+	gl.error['pad0.getyx()'] = gl.padsList[0]['pad'].getyx()
+	gl.error['pad1.getyx()'] = gl.padsList[1]['pad'].getyx()
+	gl.error['window.getyx()'] = gl.scrn.getyx()
+	checkUserInput()
 	
 	
 #print __name__
