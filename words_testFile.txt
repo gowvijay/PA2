@@ -1,0 +1,3 @@
+call/calls/called/calling
+go/gone/goes/going/went
+loops 
