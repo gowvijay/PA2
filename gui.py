@@ -53,11 +53,11 @@ class globals:
 	topWin = None
 	bottomWin = None
 	
-	topPad = None
-	bottomPad = None
+	#topPadNum = None
+	#bottomPadNum = None
 	
-	pdfPadNum = None
-	indexPadNum = None
+	pdfPadNum = topPadNum = None
+	indexPadNum = bottomPadNum = None
 	
 	activeWin = None
 	cursor = {}
@@ -160,7 +160,7 @@ def scrollPad(win='', lines=0, cols=0):
 		padDict['scrollPadCoor'] = (newY, newX)
 		return
 	except:
-		gl.error['scrollPad0'] = win, newY, newX, 0, 0, sy-1, dx-1
+		#gl.error['scrollPad0'] = win, newY, newX, 0, 0, sy-1, dx-1
 		raise
 	#gl.padsList[0]['pad'].mvderwin(2, 3)
 	#gl.topWin.mvderwin(2, 3)
@@ -202,8 +202,9 @@ def createNewPads(pagesList):
 padsKeys = ['pad', 'pageLines', 'coor', 'cursorPos', 'bottom' ]
 		
 def addPadToPadList(pad, pageLines, padNum=-1):
-	tempPad = {'pad': pad, 'pageLines': pageLines, 'cursorPos':(0,0)}
+	tempPad = {'pad': pad, 'pageLines': pageLines, 'cursorPos':(0,0), 'scrollPadCoor': (0,0)}
 	#gl.error['addPad, tempPad'] = tempPad
+	#padDict['scrollPadCoor'] = (0,0)
 	#pad.move(0,0)
 	#pad.syncok(1)
 	if padNum == -1:
@@ -417,14 +418,29 @@ def getCursorPos():
     gl.error['getCursorPos'] = winPos, padPos, (y,x)
     return y, x
     pass
+    
+def scrollToNextWord():
+    pass
+    
+#def changePdfPage(pageNum):
+    #pass
 
 def viewNext():
-	line = getCursorLine()
-	pos = getCursorPos()
-	pageNum = numParse.numParse(line, index)
-	if pageNum != -1:
-        changePdfPage(pageNum)
-	pass
+    line = getCursorLine()
+    pos = getCursorPos()
+    pageNum = numParse.numParse(line, pos[1])
+    if pageNum == -1:
+        #changePdfPage(pageNum)
+        return
+    elif pageNum == gl.topPadNum:
+        pass
+    else:
+        gl.topPadNum = pageNum
+        gl.activeWin = gl.topWin
+        scrollPad()
+        
+        gl.error['viewNext'] = pageNum, pos, line
+    pass
   
 def quit():
 	restoreScreen()
@@ -449,7 +465,8 @@ def checkUserInput():
             keyboardActions[c]()
         except:
             gl.error['checkUserInput'] = c
-            #raise
+            if c == 'v':
+                raise
         
 def main():
     try:
