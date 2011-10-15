@@ -400,6 +400,15 @@ def highlightWord(y, x, length):
 
     pass
 
+def highlight_allWords(indexLine):
+    
+    coords = search(lines, indexLine)
+    for coor in coords:
+        #try:
+            highlightWord(*coor)
+        #except:
+            #pass
+
 def getCursorLine():
     y, x = getCursorPos()
     padDict = gl.padsList[gl.indexPadNum]
@@ -463,6 +472,7 @@ def viewNext():
     gl.topPadNum = pageNum
     gl.activeWin = gl.topWin
     scrollPad()
+    highlight_allWords(line)
     
     gl.error['viewNext'] = pageNum, pos, line
     pass
