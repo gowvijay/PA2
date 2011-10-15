@@ -97,13 +97,18 @@ def initPdfAndIndex():
 		pad = padDict['pad']
 		padDict['scrollPadCoor'] = (0,0)
 		gl.topPadNum = 0
-		pad.overlay(gl.topWin)
+		dsize = pad.getmaxyx()
+		dy, dx = dsize 
+		ssize = gl.topWin.getmaxyx()
+		sy, sx = ssize
+		pad.overlay(gl.topWin, 0, 0, 0, 0, sy-1, min(dx-1, sx-1))
 		gl.topWin.move(0, 0)
 		gl.topWin.cursyncup()
 		gl.topWin.refresh()
 		gl.activeWin = gl.topWin
 		
-		padDict = gl.padsList[1]
+		
+		padDict = gl.padsList[gl.indexPadNum]
 		pad = padDict['pad']
 		padDict['scrollPadCoor'] = (0,0)
 		dsize = pad.getmaxyx()
@@ -116,7 +121,7 @@ def initPdfAndIndex():
 		
 		#gl.scrn.hline('-', 5)
 		
-		gl.bottomPadNum = 1
+		gl.bottomPadNum = gl.indexPadNum
 		gl.bottomWin.refresh()
 		#gl.topWin.overlay(pad)
 		#gl.scrn.refresh()
@@ -124,7 +129,7 @@ def initPdfAndIndex():
 		gl.error['initPdfAndIndex'] = dsize, ssize, (sy-1, dx-1)
 		raise
 		
-def scrollPad(win='', lines=1, cols=0):
+def scrollPad(win='', lines=0, cols=0):
 	'''
 	http://docs.python.org/library/curses.html#curses.window.mvderwin
 	'''
@@ -139,16 +144,20 @@ def scrollPad(win='', lines=1, cols=0):
 		pad = padDict['pad']
 		coor = padDict['scrollPadCoor']
 		newY, newX = coor
-		newY, newX = max(newY+lines, 0), max(newX +cols, 0)
-		padDict['scrollPadCoor'] = (newY, newX)
 		dsize = pad.getmaxyx()
 		dy, dx = dsize 
 		ssize = win.getmaxyx()
 		sy, sx = ssize
-		gl.error['scrollPad1'] = newY, newX , (min(newY, dy-sy), min(newX, max(dx-sx, 0)), 0, 0, sy-1, min(dx-1, sx-1)), (dy-sy, dx-sx)
 		win.clear()
-		pad.overlay(win, min(newY, max(dy-sy, 0)), min(newX, max(dx-sx, 0)), 0, 0, min(sy-1, dy-1), min(dx-1, sx-1))
+		#newY, newX = min(newY, max(dy-sy, 0)), min(newX, max(dx-sx, 0))
+		#newY = max(newY+lines, 0)
+		newY, newX = min( max(newY+lines, 0), max(dy-sy, 0) ), min( max(newX+cols,0) , max(dx-sx, 0) )
+		gl.error['scrollPad1'] = newY, newX , (min(newY, dy-sy), min(newX, max(dx-sx, 0)), 0, 0, sy-1, min(dx-1, sx-1)), (dy-sy, dx-sx)
+		
+		pad.overlay(win, newY, newX, 0, 0, min(sy-1, dy-1), min(dx-1, sx-1))
 		win.refresh()
+		
+		padDict['scrollPadCoor'] = (newY, newX)
 		return
 	except:
 		gl.error['scrollPad0'] = win, newY, newX, 0, 0, sy-1, dx-1
@@ -161,10 +170,6 @@ def restoreScreen():
 	curses.echo()
 	gl.scrn.keypad(0)
 	curses.endwin()
-	
-def grabPages(textFile):
-	gl.pagesList = indexer.preparePdfPages(textFile)
-	return gl.pagesList
 	
 def grabCurrScreenSize():
 	'''returns the height and width of the window'''
@@ -294,7 +299,8 @@ def mouse_getPos(win=''):
 		win = gl.activeWin
 	return win.getyx()
 	
-def mouse_movePos(win = '', lines=1, columns=0):
+def mouse_movePos(win = '', lines=0, cols=0):
+	columns = cols
 	try:
 		if not win:
 			win = gl.activeWin
@@ -315,13 +321,17 @@ def mouse_movePos(win = '', lines=1, columns=0):
 		pad = padDict['pad']
 		sy, sx = pad.getmaxyx()
 		dy, dx = win.getmaxyx()
-		newY = min( max(coor[0] + lines, 0), dy-1, sy-1 )
-		newX = min( max(coor[1] + columns, 0), dx-1, sx-1 )
-		padDict['cursorPos'] = (newY, newX)
+		newY =  coor[0] + lines
+		newX =  coor[1] + columns
+		#newY =  max(coor[0] + lines, 0)
+		#newX =  max(coor[1] + columns, 0)
+		#newY = min( max(coor[0] + lines, 0), dy-1, sy-1 )
+		#newX = min( max(coor[1] + columns, 0), dx-1, sx-1 )
 		win.move(newY, newX)
 		#win.move(5,5)
 		win.cursyncup()
 		gl.scrn.refresh()
+		padDict['cursorPos'] = (newY, newX)
 		gl.error['move cursor1'] = (lines, columns, newY, newX, coor, (sy, sx ), (dy, dx) )
 	except:
 		gl.error['move cursor0'] = (lines, columns, newY, newX, coor)
@@ -339,24 +349,32 @@ def moveUp():
 		mouse_movePos(lines=-1)
 	except:
 		scrollPad(lines=-1)
+		mouse_movePos()
+		#raise
 		
 def moveDown():
 	try:
 		mouse_movePos(lines=1)
 	except:
 		scrollPad(lines=1)
-		
+		mouse_movePos()
+		#raise
+	  
 def moveRight():
 	try:
 		mouse_movePos(lines=0, cols=-1)
 	except:
 		scrollPad(lines=0, cols=-1)
+		mouse_movePos()
+		#raise
 		
 def moveLeft():
 	try:
 		mouse_movePos(lines=0, cols=1)
 	except:
 		scrollPad(lines=0, cols=1)
+		mouse_movePos()
+		#raise
 		
 def viewNext():
 	
@@ -376,40 +394,85 @@ keyboardActions = {
 
 	
 def checkUserInput():
-	c = gl.scrn.getch()
-	c = chr(c)
-	if c == 'q': raise
-	try:
-		keyboardActions[c]()
-	except:
-		gl.error['checkUserInput'] = c
-	
+    while 1:
+        c = gl.scrn.getch()
+        c = chr(c)
+        if c == 'q': 
+            break
+        try:
+            keyboardActions[c]()
+        except:
+            gl.error['checkUserInput'] = c
+            #raise
+        
 def main():
-	try:
-		initScreen()
-		size =  (grabCurrScreenSize(), grabCurrScreenSize())
-		initializeTesting()
-		gl.scrn.getch()
-		#testGame()
-		#restoreScreen()
-	except Exception as err:
-		print type(err)
-		print err.args
-		print err
-		
-		raise
-	finally :
-		restoreScreen()
-		#print size
-		pp( gl.error )
-		#raise
+    try:
+        initScreen()
+        pages = indexer.preparePdfPages(indexer.test.testPdfFile)
+        gl.pagesList = pages        
+        createNewPads(pages)
+        initializeIndexWindow()
+        initPdfAndIndex()
+        
+        size =  (grabCurrScreenSize(), grabCurrScreenSize())
+        checkUserInput()
+        #initializeTesting()
+        #gl.scrn.getch()
+        #testGame()
+        #restoreScreen()
+    except Exception as err:
+        print type(err)
+        print err.args
+        print err
+
+        raise
+    finally :
+        restoreScreen()
+        #print size
+        pp( gl.error )
+        #raise
+
+def grabPages(textFile):
+	gl.pagesList = indexer.preparePdfPages(textFile)
+	return gl.pagesList
 	
+def grabIndex(index_file_name):
+	with open(index_file_name) as f:
+		page = f.read()
+	gl.indexPage = page
+	return page
+	
+def initializeIndexWindow():
+    try:
+        page = gl.indexPage
+        pad, pageLines = createNewPad(page)
+        fillInPad(pad, pageLines)
+        padNum = addPadToPadList(pad, pageLines)
+        gl.indexPadNum = padNum
+    except:
+        #gl.error['grabIndex'] = pad, padNum, page, pageLines
+        #gl.error['gl.indexPadNum'] = gl.indexPadNum
+        raise
+    
+	
+def showGUI(textFile, index_file_name):
+    try: 
+        initScreen()
+        grabPages(textFile)
+        grabIndex(index_file_name)
+        main()
+    except:
+        raise
+    finally:
+        restoreScreen()
+	
+
 def initializeTesting():
-	pages = indexer.preparePdfPages(indexer.test.testPdfFile)
-	gl.pagesList = pages
+	#pages = indexer.preparePdfPages(indexer.test.testPdfFile)
+	#gl.pagesList = pages
 	
-	createNewPads(pages)
-	initPdfAndIndex()
+	#createNewPads(pages)
+	#initPdfAndIndex()
 	#scrollPad()
 	
 	#displayNewPad(pages[0])
@@ -420,7 +483,7 @@ def initializeTesting():
 		#scrollPad(lines = 5, cols=2)
 		#switchWindow()
 		#mouse_movePos(lines=10, columns=20)
-	scrollPad(lines = -30, cols=-30)
+	#scrollPad(lines = -30, cols=-30)
 		##movePad(0, 1, i**2)
 		##movePad(1, 1, i**2)
 		#mouse_movePos(0)
@@ -440,11 +503,19 @@ def initializeTesting():
 	gl.error['window.getyx()'] = gl.scrn.getyx()
 	checkUserInput()
 	
+class testGlobals:
+	testWordFile = 'words_testFile.txt'
+	testPdfFile = 'pdfTestFile.txt'
+	testIndexFile = 'testIndexFile.txt'
+	debug = 1
+
+test = testGlobals()
+debug = test.debug
 	
 #print __name__
 if __name__ == '__main__':
-	
-	main()
+	showGUI(test.testPdfFile, test.testIndexFile)
+	#main()
 	
 	
 	
