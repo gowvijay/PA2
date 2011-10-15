@@ -49,8 +49,18 @@ class globals:
 	error = {}
 	pagesList = []
 	padsList = []  #maybe a more complicated version of a list. probably a list of {}
-	pdfPad = None
-	indexPad = None
+	
+	topWin = None
+	bottomWin = None
+	
+	topPad = None
+	bottomPad = None
+	
+	pdfPadNum = None
+	indexPadNum = None
+	
+	activeWin = None
+	cursor = {}
 	scrn = None
 	row = 0
 	col = 0
@@ -63,7 +73,7 @@ def initScreen():
 	size = getSecondWindowCorner()
 	gl.topWin = gl.scrn.subwin(size[0]-1, size[1]-1, 0+1,0)
 	gl.bottomWin = gl.scrn.subwin(size[0]-1, size[1]-1, size[0]+1,0)
-	curses.noecho
+	curses.noecho()
 	curses.cbreak()
 	curses.start_color()
 	gl.scrn.keypad(1)
@@ -85,39 +95,72 @@ def initPdfAndIndex():
 	try:
 		padDict = gl.padsList[0]
 		pad = padDict['pad']
+		padDict['scrollPadCoor'] = (0,0)
+		gl.topPadNum = 0
 		pad.overlay(gl.topWin)
+		gl.topWin.move(0, 0)
+		gl.topWin.cursyncup()
 		gl.topWin.refresh()
+		gl.activeWin = gl.topWin
 		
 		padDict = gl.padsList[1]
 		pad = padDict['pad']
+		padDict['scrollPadCoor'] = (0,0)
 		dsize = pad.getmaxyx()
 		dy, dx = dsize 
 		ssize = gl.bottomWin.getmaxyx()
 		sy, sx = ssize
-		pad.overlay(gl.bottomWin, 0, 0, 0, 0, sy-1, dx-1)
+		pad.overlay(gl.bottomWin, 0, 0, 0, 0, sy-1, min(dx-1, sx-1))
 		'''window.hline([y, x], ch, n)
     Display a horizontal line starting at (y, x) with length n consisting of the character ch.'''
-		gl.scrn.hline('-', 5)
+		
+		#gl.scrn.hline('-', 5)
+		
+		gl.bottomPadNum = 1
 		gl.bottomWin.refresh()
 		#gl.topWin.overlay(pad)
 		#gl.scrn.refresh()
 	except:
-		gl.error['initPdfAndIndex'] = dsize, ssize
+		gl.error['initPdfAndIndex'] = dsize, ssize, (sy-1, dx-1)
 		raise
 		
-def scrollPad():
+def scrollPad(win='', lines=1, cols=0):
 	'''
 	http://docs.python.org/library/curses.html#curses.window.mvderwin
 	'''
-	return
-	gl.padsList[0]['pad'].mvderwin(2, 3)
+	try:
+		if not win:
+			win = gl.activeWin
+		if win == gl.topWin:
+			padnum = gl.topPadNum
+		else:
+			padnum = gl.bottomPadNum
+		padDict = gl.padsList[padnum]
+		pad = padDict['pad']
+		coor = padDict['scrollPadCoor']
+		newY, newX = coor
+		newY, newX = max(newY+lines, 0), max(newX +cols, 0)
+		padDict['scrollPadCoor'] = (newY, newX)
+		dsize = pad.getmaxyx()
+		dy, dx = dsize 
+		ssize = win.getmaxyx()
+		sy, sx = ssize
+		gl.error['scrollPad1'] = newY, newX , (min(newY, dy-sy), min(newX, max(dx-sx, 0)), 0, 0, sy-1, min(dx-1, sx-1)), (dy-sy, dx-sx)
+		win.clear()
+		pad.overlay(win, min(newY, max(dy-sy, 0)), min(newX, max(dx-sx, 0)), 0, 0, min(sy-1, dy-1), min(dx-1, sx-1))
+		win.refresh()
+		return
+	except:
+		gl.error['scrollPad0'] = win, newY, newX, 0, 0, sy-1, dx-1
+		raise
+	#gl.padsList[0]['pad'].mvderwin(2, 3)
 	#gl.topWin.mvderwin(2, 3)
 	
 def restoreScreen():
 	curses.nocbreak()
 	curses.echo()
-	curses.endwin()
 	gl.scrn.keypad(0)
+	curses.endwin()
 	
 def grabPages(textFile):
 	gl.pagesList = indexer.preparePdfPages(textFile)
@@ -244,44 +287,102 @@ def movePad(padNum, lines=1, columns=0):
 	#pad.scroll()
 	pass
   
-def mouse_getPos(padNum):
-	padDict = gl.padsList[padNum]
-	pad = padDict['pad']
-	return pad.getyx()
+def mouse_getPos(win=''):
+	#padDict = gl.padsList[padNum]
+	#pad = padDict['pad']
+	if not win:
+		win = gl.activeWin
+	return win.getyx()
 	
-def mouse_movePos(padNum, lines=1, columns=0):
+def mouse_movePos(win = '', lines=1, columns=0):
 	try:
-		padDict = gl.padsList[padNum]
-		pad = padDict['pad']
-		#coor = mouse_getPos(padNum)
-		coor = 0,0
-		newY = coor[0] + lines
-		if newY < 0:
-			newY = 0
-		newX = coor[1] + columns
-		if newX < 0:
-			newX = 0
-		pad.move(newY, newX)
-		pad.move(5,5)
+		if not win:
+			win = gl.activeWin
 		
+		#coor = mouse_getPos(win)
+		#coor = 0,0
+		if win == gl.topWin:
+			padNum = gl.topPadNum
+		else:
+			padNum = gl.bottomPadNum
+			
+		padDict = gl.padsList[padNum]
+		try:
+			coor = padDict['cursorPos']
+		except:
+			coor = (0,0)
+		
+		pad = padDict['pad']
+		sy, sx = pad.getmaxyx()
+		dy, dx = win.getmaxyx()
+		newY = min( max(coor[0] + lines, 0), dy-1, sy-1 )
+		newX = min( max(coor[1] + columns, 0), dx-1, sx-1 )
+		padDict['cursorPos'] = (newY, newX)
+		win.move(newY, newX)
+		#win.move(5,5)
+		win.cursyncup()
 		gl.scrn.refresh()
+		gl.error['move cursor1'] = (lines, columns, newY, newX, coor, (sy, sx ), (dy, dx) )
 	except:
-		gl.error['move cursor'] = (padNum, lines, columns, newY, newX, coor)
+		gl.error['move cursor0'] = (lines, columns, newY, newX, coor)
 		raise
+
+def switchWindow():
+	if gl.activeWin == gl.topWin:
+		gl.activeWin = gl.bottomWin
+	else:
+		gl.activeWin = gl.topWin
+	gl.activeWin.refresh()
 	
+def moveUp():
+	try:
+		mouse_movePos(lines=-1)
+	except:
+		scrollPad(lines=-1)
+		
+def moveDown():
+	try:
+		mouse_movePos(lines=1)
+	except:
+		scrollPad(lines=1)
+		
+def moveRight():
+	try:
+		mouse_movePos(lines=0, cols=-1)
+	except:
+		scrollPad(lines=0, cols=-1)
+		
+def moveLeft():
+	try:
+		mouse_movePos(lines=0, cols=1)
+	except:
+		scrollPad(lines=0, cols=1)
+		
+def viewNext():
 	
-#keyboardActions = {
-					#'o':switchWindow, 
-					#'u':moveUp, 'd':moveDown,
-					#'l':moveRight, 'r':moveLeft, 
-					#'v':viewNext, 
-					#'q':quit, 
-				  #}
+	pass
+  
+def quit():
+	restoreScreen()
+	raise
+		
+keyboardActions = {
+					'o':switchWindow, 
+					'u':moveUp, 'd':moveDown,
+					'r':moveRight, 'l':moveLeft, 
+					'v':viewNext, 
+					'q':quit, 
+				  }
+
 	
 def checkUserInput():
 	c = gl.scrn.getch()
 	c = chr(c)
 	if c == 'q': raise
+	try:
+		keyboardActions[c]()
+	except:
+		gl.error['checkUserInput'] = c
 	
 def main():
 	try:
@@ -299,7 +400,7 @@ def main():
 		raise
 	finally :
 		restoreScreen()
-		print size
+		#print size
 		pp( gl.error )
 		#raise
 	
@@ -308,24 +409,31 @@ def initializeTesting():
 	gl.pagesList = pages
 	
 	createNewPads(pages)
+	initPdfAndIndex()
+	#scrollPad()
 	
 	#displayNewPad(pages[0])
 	#displayNewPad(pages[1], 1)
-	#for i in range(5):
+	for i in range(1000):
 	##while True:
-		#checkUserInput()
+		checkUserInput()
+		#scrollPad(lines = 5, cols=2)
+		#switchWindow()
+		#mouse_movePos(lines=10, columns=20)
+	scrollPad(lines = -30, cols=-30)
 		##movePad(0, 1, i**2)
 		##movePad(1, 1, i**2)
 		#mouse_movePos(0)
 	#movePad(0, -100, -100)
 	#movePad(1, -100, -100)
 	#gl.scrn.vline('|', 24)
-	initPdfAndIndex()
-	scrollPad()
 	gl.scrn.syncok(1)
-	gl.error['curses.setsyx(y, x)'] = curses.setsyx(5, 6)
-	gl.scrn.syncup()
+	#gl.error['curses.setsyx(y, x)'] = curses.setsyx(5, 6)
+	#gl.scrn.syncup()
 	gl.error['curses.getsyx()'] = curses.getsyx()
+	gl.error['gl.activeWin.getyx()'] = gl.activeWin.getyx()
+	gl.error['gl.topWin.getyx()'] = gl.topWin.getyx()
+	gl.error['gl.bottomWin.getyx()'] = gl.bottomWin.getyx()
 	gl.error['window.getyx()'] = gl.scrn.getyx()
 	gl.error['pad0.getyx()'] = gl.padsList[0]['pad'].getyx()
 	gl.error['pad1.getyx()'] = gl.padsList[1]['pad'].getyx()
