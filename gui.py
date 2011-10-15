@@ -377,7 +377,7 @@ def moveLeft():
 		mouse_movePos()
 		#raise
 
-def highlightWord():
+def highlightWord(y, x, length):
     '''
     window.chgat([y, x][, num], attr)
     Set the attributes of num characters at the current cursor position, or at position (y, x) if supplied. 
@@ -385,6 +385,19 @@ def highlightWord():
     the end of the line. This function does not move the cursor. The changed line will be touched 
     using the touchline() method so that the contents will be redisplayed by the next window refresh.
     '''
+    padNum = gl.topPadNum
+    padDict = gl.padsList[padNum]
+    pad = padDict['pad']
+    pad.chgat(y, x, length, curses.A_REVERSE)
+    #try:
+        #gl.topWin.chgat(y, x, length, curses.A_REVERSE)
+    #except:
+        #pass
+    scrollPad()
+    #coor = padDict['scrollPadCoor']
+    gl.error['highlightWord'] = padNum, (y, x, length)
+    #gl.topWin.refresh()
+
     pass
 
 def getCursorLine():
@@ -425,6 +438,13 @@ def scrollToNextWord():
 #def changePdfPage(pageNum):
     #pass
 
+def getListOfPagesFromIndex(line):
+    words = line.split()
+    numbers = words[-1]
+    numList = numbers.split(',')
+    numList = map(int, numList)
+    return numList
+
 def viewNext():
     line = getCursorLine()
     pos = getCursorPos()
@@ -433,13 +453,18 @@ def viewNext():
         #changePdfPage(pageNum)
         return
     elif pageNum == gl.topPadNum:
+        pageList = getListOfPagesFromIndex(line)
+        ind = pageList.index(pageNum)
+        nextInd = pageList[(ind+1)%len(pageList)]
+        pageNum = nextInd   
         pass
     else:
-        gl.topPadNum = pageNum
-        gl.activeWin = gl.topWin
-        scrollPad()
-        
-        gl.error['viewNext'] = pageNum, pos, line
+        pass
+    gl.topPadNum = pageNum
+    gl.activeWin = gl.topWin
+    scrollPad()
+    
+    gl.error['viewNext'] = pageNum, pos, line
     pass
   
 def quit():
@@ -558,6 +583,7 @@ def initializeTesting():
     gl.scrn.syncok(1)
     #gl.error['curses.setsyx(y, x)'] = curses.setsyx(5, 6)
     #gl.scrn.syncup()
+    highlightWord(0, 0, 10)
     gl.padsList[2]['pad'].move(50,0)
     gl.padsList[2]['pad'].cursyncup()
     getCursorPos()
