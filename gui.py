@@ -467,9 +467,10 @@ def getListOfPagesFromIndex(line):
 
 def viewNext():
     line = getCursorLine()
+    writeOut(line)
     pos = getCursorPos()
     pageNum = numParse.numParse(line, pos[1]) 
-    writeOut(str(pageNum))
+    #writeOut(str(pageNum))
     pageNum -= 1
     gl.error['viewNext'] = pageNum, pos, line
     if pageNum < 0:
@@ -531,6 +532,7 @@ def checkUserInput():
                     if gl.bottomWin.enclose(y,x):
                         py, px = gl.bottomWin.getparyx()
                         gl.bottomWin.move(y-py,x)
+                        
                         writeOut( chr( gl.bottomWin.inch() ) )
                         #time.sleep(0.5)
                     viewNext()

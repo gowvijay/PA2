@@ -34,7 +34,7 @@ import string
     #return output 
 
 #Test code below. 
-a = ["hi, I am a robot .", "I can do many things other robots can't dorobot", "For instance, no other robot can run as many programs as I can."]
+a = ["robot hi, I am a robot .", "I can do many things other robots can't do robot", "For instance, no other robot can run as many programs as I can."]
 b = ['robot  r ']
 
 #search (a, b)
@@ -48,6 +48,10 @@ def search(lines, indexLine):
     for word in words:
         wLen = len(word)
         for ind, line in enumerate(lines):
+            if line.startswith(word.strip()):
+                coordinates.append( (ind, 0, wLen) )
+            if line.endswith(word.strip()):
+                coordinates.append( (ind, len(line) - wLen, wLen) )
             toks = line.split(word)
             toks = filter(None, toks)
             #if len(toks) ==1:
@@ -63,6 +67,7 @@ def search(lines, indexLine):
 if __name__ == '__main__':
     print search(a, 'robot/things/robots')
     print map(len, a)
+    raw_input()
         
     
 
