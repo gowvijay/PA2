@@ -1,7 +1,7 @@
 
 
-import indexer, numParse
-import curses, sys, os, string
+import indexer, numParse, search
+import curses, sys, os, string, time
 import pprint
 pp = pprint.pprint
 
@@ -49,6 +49,7 @@ class globals:
 	error = {}
 	pagesList = []
 	padsList = []  #maybe a more complicated version of a list. probably a list of {}
+	prevCoords = []
 	
 	topWin = None
 	bottomWin = None
@@ -81,6 +82,7 @@ def initScreen():
 	gl.scrn.refresh()
 	gl.row = 0
 	gl.column = 0
+	curses.mousemask(curses.ALL_MOUSE_EVENTS)
 	
 def initPdfAndIndex():
 	'''http://docs.python.org/library/curses.html#curses.window.overlay
@@ -115,7 +117,7 @@ def initPdfAndIndex():
 		dy, dx = dsize 
 		ssize = gl.bottomWin.getmaxyx()
 		sy, sx = ssize
-		pad.overlay(gl.bottomWin, 0, 0, 0, 0, sy-1, min(dx-1, sx-1))
+		pad.overlay(gl.bottomWin, 0, 0, 0, 0, min(dy-1, sy-1), min(dx-1, sx-1))
 		'''window.hline([y, x], ch, n)
     Display a horizontal line starting at (y, x) with length n consisting of the character ch.'''
 		
@@ -377,7 +379,7 @@ def moveLeft():
 		mouse_movePos()
 		#raise
 
-def highlightWord(y, x, length):
+def highlightWord(y, x, length, reverse = True):
     '''
     window.chgat([y, x][, num], attr)
     Set the attributes of num characters at the current cursor position, or at position (y, x) if supplied. 
@@ -388,11 +390,16 @@ def highlightWord(y, x, length):
     padNum = gl.topPadNum
     padDict = gl.padsList[padNum]
     pad = padDict['pad']
-    pad.chgat(y, x, length, curses.A_REVERSE)
-    #try:
-        #gl.topWin.chgat(y, x, length, curses.A_REVERSE)
-    #except:
-        #pass
+    gl.error['highlightWord'] = padNum, (y, x, length)
+    if reverse:
+        pad.chgat(y, x, length, curses.A_REVERSE)
+    else:
+        pad.chgat(y, x, length, curses.A_NORMAL)
+        pass
+    try:
+        gl.topWin.chgat(y, x, length, curses.A_REVERSE)
+    except:
+        pass
     scrollPad()
     #coor = padDict['scrollPadCoor']
     gl.error['highlightWord'] = padNum, (y, x, length)
@@ -401,13 +408,17 @@ def highlightWord(y, x, length):
     pass
 
 def highlight_allWords(indexLine):
-    
-    coords = search(lines, indexLine)
+    padNum = gl.topPadNum
+    padDict = gl.padsList[padNum]
+    lines = padDict['pageLines']
+    for coor in gl.prevCoords:
+        highlightWord(*coor, reverse=False)
+    coords = search.search(lines, indexLine)
+    gl.prevCoords = coords
     for coor in coords:
         #try:
             highlightWord(*coor)
-        #except:
-            #pass
+    return coords
 
 def getCursorLine():
     y, x = getCursorPos()
@@ -457,25 +468,37 @@ def getListOfPagesFromIndex(line):
 def viewNext():
     line = getCursorLine()
     pos = getCursorPos()
-    pageNum = numParse.numParse(line, pos[1])
-    if pageNum == -1:
+    pageNum = numParse.numParse(line, pos[1]) 
+    writeOut(str(pageNum))
+    pageNum -= 1
+    gl.error['viewNext'] = pageNum, pos, line
+    if pageNum < 0:
         #changePdfPage(pageNum)
         return
     elif pageNum == gl.topPadNum:
         pageList = getListOfPagesFromIndex(line)
-        ind = pageList.index(pageNum)
-        nextInd = pageList[(ind+1)%len(pageList)]
-        pageNum = nextInd   
+        pageList = [j-1 for j in pageList]
+        try:
+            ind = pageList.index(pageNum)
+            nextInd = pageList[(ind+1)%len(pageList)]
+            pageNum = nextInd   
+    
+        except:
+            pass
         pass
     else:
         pass
     gl.topPadNum = pageNum
     gl.activeWin = gl.topWin
     scrollPad()
-    highlight_allWords(line)
+    coords = highlight_allWords(line)
+    mouse_movePos()
     
-    gl.error['viewNext'] = pageNum, pos, line
     pass
+  
+def writeOut(string):
+    if test.debug:
+        gl.scrn.addstr(0, 0, (string))
   
 def quit():
 	restoreScreen()
@@ -489,14 +512,37 @@ keyboardActions = {
 					'q':quit, 
 				  }
 
+#def checkForMouse(x, y):
+    #return gl.bottomWin.enclose(y,x)
 	
 def checkUserInput():
     while 1:
-        c = gl.scrn.getch()
-        c = chr(c)
-        if c == 'q': 
-            break
+        
         try:
+            c = gl.scrn.getch()
+            if c == curses.KEY_MOUSE:
+                pass
+                # handle mouse events -- set x,y to the mouse click location
+                device_id, mouse_x, mouse_y, mouse_z, eventType = curses.getmouse()
+                gl.error['mouse EVENT'] = (device_id, mouse_x, mouse_y, mouse_z, eventType)
+                if eventType == curses.BUTTON1_CLICKED:
+                    c = 'v'
+                    x, y = mouse_x, mouse_y
+                    if gl.bottomWin.enclose(y,x):
+                        py, px = gl.bottomWin.getparyx()
+                        gl.bottomWin.move(y-py,x)
+                        writeOut( chr( gl.bottomWin.inch() ) )
+                        #time.sleep(0.5)
+                    viewNext()
+                    pass
+                    #plane.xcurs = mouse_x
+                    #plane.ycurs = mouse_y
+                    #window.addstr(0, 0, "%s,%s"%(mouse_x,mouse_y))
+            else:
+                c = chr(c)
+            if c == 'q': 
+                break
+        
             keyboardActions[c]()
         except:
             gl.error['checkUserInput'] = c
@@ -506,18 +552,15 @@ def checkUserInput():
 def main():
     try:
         initScreen()
-        pages = indexer.preparePdfPages(indexer.test.testPdfFile)
+        pages = gl.pagesList
         gl.pagesList = pages        
         createNewPads(pages)
         initializeIndexWindow()
         initPdfAndIndex()
             
-        gl.padsList[2]['pad'].move(50,0)
-        gl.padsList[2]['pad'].cursyncup()
-        
         checkUserInput()
         
-        initializeTesting()
+        #initializeTesting()
         #gl.scrn.getch()
         #testGame()
         #restoreScreen()
@@ -529,7 +572,8 @@ def main():
         raise
     finally :
         restoreScreen()
-        pp( gl.error )
+        if debug:
+            pp( gl.error )
         #raise
 
 def grabPages(textFile):

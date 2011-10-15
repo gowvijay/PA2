@@ -34,13 +34,15 @@ class globals:
 gl = globals()
 
 def buildIndex(pdf_file_name, index_file_name, word_file_name):
-	'''main workflow function for this module'''
-	prepareWords(word_file_name)
-	textFile = pdfToText(pdf_file_name)
-	indexPDF(textFile)
-	if not debug:
-		writeIndexFile(index_file_name)
-	return textFile, index_file_name
+    '''main workflow function for this module'''
+    prepareWords(word_file_name)
+    textFile = pdfToText(pdf_file_name)
+    indexPDF(textFile)
+    if not debug:
+        writeIndexFile(index_file_name)
+    #print textFile, index_file_name
+    #raw_input()
+    return textFile, index_file_name
 
 def prepareWords(word_file_name):
     with open(word_file_name) as f:
@@ -87,8 +89,10 @@ def parseAndIndexContent():
             addWord(word, pageNum) 
 
 def addWord(word, pageNum):
+    pageNum += 1
     key = ''
     if word not in gl.variants:
+        return
         gl.variants[word] = word
         gl.words[word] = [pageNum]
         key = word
@@ -104,7 +108,7 @@ def writeIndexFile(index_file_name):
 class testGlobals:
 	testWordFile = 'words_testFile.txt'
 	testPdfFile = 'pdfTestFile.txt'
-	debug = 1
+	debug = 0
 	
 test = testGlobals()
 debug = test.debug

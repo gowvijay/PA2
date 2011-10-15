@@ -3,7 +3,7 @@
 
 def numParse(line, index):
     #if the value pointed to by index is not a digit, then return -1. 
-    if not line[index].isdigit():
+    if index >= len(line) or not line[index].isdigit():
         return -1 
     num = ''
     lowerBound = index

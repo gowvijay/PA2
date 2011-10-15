@@ -1,7 +1,7 @@
 #
 import indexer
 import gui 
-import sys
+import sys, os, time
 
 class testGlobals:
 	testWordFile = 'words_testFile.txt'
@@ -19,6 +19,7 @@ if __name__ == '__main__':
     except:
         pdf_file_name = test.testPdfFile
         index_file_name = test.testIndexFile
+        pass
     try:
         word_file_name = sys.argv[3]
     except:
@@ -26,9 +27,12 @@ if __name__ == '__main__':
     if debug:
         print sys.argv
         print pdf_file_name, index_file_name, word_file_name
-        raw_input(word_file_name)
+        #raw_input(word_file_name)
     if word_file_name:
         textFile, index_file_name = indexer.buildIndex(pdf_file_name, index_file_name, word_file_name)
     else:
-		textFile = indexer.pdfToText(pdf_file_name)
+        textFile = indexer.pdfToText(pdf_file_name)
+        #print textFile, sys.argv
+        #raw_input(textFile)
+    time.sleep(1)
     gui.showGUI(textFile, index_file_name)
